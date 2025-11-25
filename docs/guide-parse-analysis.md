@@ -101,6 +101,13 @@ Key data to extract:
 - [x] Stat distribution analysis (primary damage, max resource, crit chance/damage)
 - [x] Priority-based recommendation system (critical, high, medium, low)
 
+### Phase 7: Database-Powered Gear Analysis ✅
+- [x] Set identification from gear names (queries 629 sets in database)
+- [x] Redundant buff detection (set + skill overlap, e.g., Medusa + Barbed Trap)
+- [x] Missing buff suggestions with set recommendations from database
+- [x] Stat cap detection (penetration over 18,200, crit damage diminishing returns)
+- [x] Tag-based set lookup (find sets providing specific buffs)
+
 ## Example GraphQL Queries
 
 ### Get Report Summary
@@ -244,21 +251,27 @@ Returns:
 - Top 10 abilities
 - Gear equipped
 - Major buffs (>50% uptime)
+- **Gear Analysis** (NEW - database-powered):
+  - `setsIdentified`: List of sets detected in your gear (e.g., ["Medusa", "Pillar of Nirn"])
+  - `buffsFromGear`: Buffs provided by your active set bonuses (e.g., ["Minor Force (from Medusa (5pc))"])
 - **Build recommendations** organized by priority:
+  - **Optimization**: Redundant buff sources (e.g., "Medusa provides Minor Force but you also have Barbed Trap")
   - Critical: Must-fix issues (missing enchants, very low stats)
-  - High: Important improvements (incomplete sets, low buff uptimes)
-  - Medium: Optimization opportunities (trait optimization, execute abilities)
-  - Low: Min-max refinements (stat diminishing returns)
+  - High: Important improvements (incomplete sets, low buff uptimes, missing buffs with set suggestions)
+  - Medium: Optimization opportunities (trait optimization, execute abilities, penetration over cap)
+  - Low: Min-max refinements (crit damage diminishing returns)
 
 ## Next Steps
 
 1. ✅ Add credentials to `.env`
 2. ✅ Test with provided example URLs
-3. [ ] Enhance character/class detection from summary data
-4. [ ] Add support for comparing multiple parses
-5. [ ] Add support for rankings/percentiles
-6. [ ] Improve gear set detection (handle more set name variations)
-7. [ ] Add class-specific skill recommendations
+3. ✅ Database-powered gear analysis with 629 sets
+4. ✅ Redundant buff detection
+5. ✅ Tag-based set suggestions for missing buffs
+6. [ ] Enhance character/class detection from summary data
+7. [ ] Add support for comparing multiple parses
+8. [ ] Add support for rankings/percentiles
+9. [ ] Add class-specific skill recommendations
 
 ---
 

@@ -327,3 +327,33 @@ model CharacterBuild {
 
   @@index([name])
 }
+
+// Tags for cross-entity search
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique  // e.g., "major-force", "max-stamina", "flame-damage"
+  category    String    // resource, offensive, defensive, buff, debuff, damage-type, crowd-control, proc, role, mechanic
+  displayName String    // e.g., "Major Force", "Max Stamina", "Flame Damage"
+  description String?   // Optional description of what the tag means
+
+  items       ItemTag[]
+
+  @@index([category])
+  @@index([name])
+}
+
+// Polymorphic join table linking tags to any entity
+model ItemTag {
+  id        Int     @id @default(autoincrement())
+
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  itemId    String  // The ID from the source table (skill, set, buff, etc.)
+  itemType  String  // "skill", "set", "set_bonus", "buff", "debuff", "mundus", "racial_passive"
+
+  @@unique([tagId, itemId, itemType])
+  @@index([tagId])
+  @@index([itemType])
+  @@index([itemId, itemType])
+}

@@ -37,7 +37,7 @@ import {
   fetchCharacterData,
   convertToGMXFormat,
 } from './utils/esologs-api.js';
-import { generateBuildRecommendations } from './utils/build-recommendations.js';
+import { generateBuildRecommendationsAsync } from './utils/build-recommendations.js';
 import { unifiedSearch, getDetailedInfo } from './utils/unified-search.js';
 import {
   GRIMOIRES,
@@ -821,6 +821,67 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['grimoire', 'focus', 'affix', 'signature'],
+        },
+      },
+      {
+        name: 'search_by_tag',
+        description: 'Search for ESO items by tag. Find all items with specific attributes like "major-force", "max-stamina", "flame-damage", etc.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tag: {
+              type: 'string',
+              description: 'Tag name to search for (e.g., "major-force", "max-stamina", "penetration", "stun")',
+            },
+            category: {
+              type: 'string',
+              enum: ['buff', 'debuff', 'resource', 'offensive', 'defensive', 'damage-type', 'crowd-control', 'proc', 'role', 'mechanic', 'set-type'],
+              description: 'Optional: filter by tag category',
+            },
+            itemType: {
+              type: 'string',
+              enum: ['skill', 'set', 'set_bonus', 'buff', 'debuff', 'mundus', 'racial_passive'],
+              description: 'Optional: filter by item type',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of results (default: 20)',
+            },
+          },
+          required: ['tag'],
+        },
+      },
+      {
+        name: 'list_tags',
+        description: 'List all available tags, optionally filtered by category',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              enum: ['buff', 'debuff', 'resource', 'offensive', 'defensive', 'damage-type', 'crowd-control', 'proc', 'role', 'mechanic', 'set-type'],
+              description: 'Optional: filter by tag category',
+            },
+          },
+        },
+      },
+      {
+        name: 'get_item_tags',
+        description: 'Get all tags associated with a specific item',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            itemId: {
+              type: 'string',
+              description: 'The item ID',
+            },
+            itemType: {
+              type: 'string',
+              enum: ['skill', 'set', 'set_bonus', 'buff', 'debuff', 'mundus', 'racial_passive'],
+              description: 'The item type',
+            },
+          },
+          required: ['itemId', 'itemType'],
         },
       },
     ],
@@ -2028,7 +2089,8 @@ ${validation.suggestions.map(s => `- ${s}`).join('\n')}
         const characterData = await fetchCharacterData(reportUrl);
         const cmxFormat = convertToGMXFormat(characterData);
         const analysis = analyzeCMXParse(cmxFormat);
-        const buildRecs = generateBuildRecommendations(characterData);
+        // Use the async version that queries the database for set information
+        const buildRecs = await generateBuildRecommendationsAsync(characterData);
 
         return {
           content: [
@@ -2053,8 +2115,13 @@ ${validation.suggestions.map(s => `- ${s}`).join('\n')}
                 topAbilities: characterData.damage.abilities.slice(0, 10),
                 gear: characterData.summary.gear,
                 buffs: characterData.summary.buffs.filter(b => b.uptime > 50),
+                gearAnalysis: {
+                  setsIdentified: buildRecs.setsIdentified,
+                  buffsFromGear: buildRecs.buffsFromGear,
+                },
                 buildRecommendations: {
                   summary: buildRecs.summary,
+                  optimization: buildRecs.recommendations.filter(r => r.category === 'optimization'),
                   critical: buildRecs.recommendations.filter(r => r.priority === 'critical'),
                   high: buildRecs.recommendations.filter(r => r.priority === 'high'),
                   medium: buildRecs.recommendations.filter(r => r.priority === 'medium'),
@@ -2267,6 +2334,233 @@ ${validation.suggestions.map(s => `- ${s}`).join('\n')}
           },
         ],
       };
+    }
+
+    case 'search_by_tag': {
+      const { tag, category, itemType, limit = 20 } = args as {
+        tag: string;
+        category?: string;
+        itemType?: string;
+        limit?: number;
+      };
+
+      try {
+        // Build the query for tag matching
+        const tagWhere: any = {
+          OR: [
+            { name: { contains: tag.toLowerCase() } },
+            { displayName: { contains: tag } },
+          ],
+        };
+
+        if (category) {
+          tagWhere.category = category;
+        }
+
+        // Find matching tags
+        const matchingTags = await prisma.tag.findMany({
+          where: tagWhere,
+          include: {
+            items: {
+              where: itemType ? { itemType } : undefined,
+              take: limit,
+            },
+          },
+        });
+
+        // Collect all item IDs grouped by type
+        const itemsByType: Record<string, string[]> = {};
+        for (const t of matchingTags) {
+          for (const item of t.items) {
+            if (!itemsByType[item.itemType]) {
+              itemsByType[item.itemType] = [];
+            }
+            if (!itemsByType[item.itemType].includes(item.itemId)) {
+              itemsByType[item.itemType].push(item.itemId);
+            }
+          }
+        }
+
+        // Fetch actual item details
+        const results: any[] = [];
+
+        if (itemsByType.buff) {
+          const buffs = await prisma.buff.findMany({
+            where: { id: { in: itemsByType.buff } },
+          });
+          results.push(...buffs.map((b) => ({ ...b, _type: 'buff' })));
+        }
+
+        if (itemsByType.debuff) {
+          const debuffs = await prisma.debuff.findMany({
+            where: { id: { in: itemsByType.debuff } },
+          });
+          results.push(...debuffs.map((d) => ({ ...d, _type: 'debuff' })));
+        }
+
+        if (itemsByType.set) {
+          const sets = await prisma.set.findMany({
+            where: { id: { in: itemsByType.set } },
+            include: { bonuses: true },
+          });
+          results.push(...sets.map((s) => ({ ...s, _type: 'set' })));
+        }
+
+        if (itemsByType.skill) {
+          const skills = await prisma.skill.findMany({
+            where: { id: { in: itemsByType.skill } },
+          });
+          results.push(...skills.map((s) => ({ ...s, _type: 'skill' })));
+        }
+
+        if (itemsByType.mundus) {
+          const mundusStones = await prisma.mundusStone.findMany({
+            where: { id: { in: itemsByType.mundus } },
+          });
+          results.push(...mundusStones.map((m) => ({ ...m, _type: 'mundus' })));
+        }
+
+        if (itemsByType.racial_passive) {
+          const passives = await prisma.racialPassive.findMany({
+            where: { id: { in: itemsByType.racial_passive.map((id) => parseInt(id)) } },
+          });
+          results.push(...passives.map((p) => ({ ...p, _type: 'racial_passive' })));
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  matchedTags: matchingTags.map((t) => ({
+                    name: t.name,
+                    displayName: t.displayName,
+                    category: t.category,
+                    itemCount: t.items.length,
+                  })),
+                  totalResults: results.length,
+                  results: results.slice(0, limit),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to search by tag: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case 'list_tags': {
+      const { category } = args as { category?: string };
+
+      try {
+        const where = category ? { category } : undefined;
+        const tags = await prisma.tag.findMany({
+          where,
+          orderBy: [{ category: 'asc' }, { name: 'asc' }],
+          include: {
+            _count: {
+              select: { items: true },
+            },
+          },
+        });
+
+        // Group by category
+        const grouped: Record<string, any[]> = {};
+        for (const tag of tags) {
+          if (!grouped[tag.category]) {
+            grouped[tag.category] = [];
+          }
+          grouped[tag.category].push({
+            name: tag.name,
+            displayName: tag.displayName,
+            description: tag.description,
+            itemCount: tag._count.items,
+          });
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  totalTags: tags.length,
+                  byCategory: grouped,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to list tags: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case 'get_item_tags': {
+      const { itemId, itemType } = args as { itemId: string; itemType: string };
+
+      try {
+        const itemTags = await prisma.itemTag.findMany({
+          where: { itemId, itemType },
+          include: { tag: true },
+        });
+
+        const tags = itemTags.map((it) => ({
+          name: it.tag.name,
+          displayName: it.tag.displayName,
+          category: it.tag.category,
+        }));
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  itemId,
+                  itemType,
+                  tagCount: tags.length,
+                  tags,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to get item tags: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
 
     default:

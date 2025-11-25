@@ -1,0 +1,45 @@
+{
+  "skillMorphs": {
+    "Trap Beast": {
+      "skillLine": "Fighters Guild",
+      "category": "guild",
+      "morphs": ["Barbed Trap", "Lightweight Beast Trap"]
+    },
+    "Accelerate": {
+      "skillLine": "Psijic Order",
+      "category": "guild",
+      "morphs": ["Channeled Acceleration", "Race Against Time"]
+    },
+    "Dark Deal": {
+      "skillLine": "Dark Magic",
+      "category": "class",
+      "morphs": ["Dark Exchange", "Dark Conversion"]
+    },
+    "Stalwart Guard": {
+      "skillLine": "Support",
+      "category": "alliance",
+      "morphs": ["Mystic Guard", "Stalwart Guard"]
+    },
+    "Howl of Despair": {
+      "skillLine": "Werewolf",
+      "category": "world",
+      "morphs": ["Howl of Agony", "Deafening Roar"]
+    },
+    "Critical Rush": {
+      "skillLine": "Two Handed",
+      "category": "weapon",
+      "morphs": ["Critical Charge", "Stampede"]
+    },
+    "Snipe": {
+      "skillLine": "Bow",
+      "category": "weapon",
+      "morphs": ["Lethal Arrow", "Focused Aim"]
+    },
+    "Rapid Fire": {
+      "skillLine": "Bow",
+      "category": "weapon",
+      "morphs": ["Toxic Barrage", "Ballista"]
+    }
+  },
+  "notes": "This file maps base skills to their morphs for display purposes. All morphs inherit the same buffs/effects as their base skill."
+}
