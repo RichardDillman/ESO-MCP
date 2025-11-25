@@ -110,10 +110,10 @@ Raid-viable food and potions:
 
 ## 📚 Documentation
 
-- [ESO Logs Integration Guide](docs/ESOLOGS-INTEGRATION.md) - Set up parse analysis
-- [ESO Logs Setup](docs/ESOLOGS-SETUP-GUIDE.md) - API credentials
-- [Scribing System](docs/SCRIBING-SYSTEM.md) - Scribing validation
-- [Target Dummies](docs/TARGET-DUMMIES.md) - Dummy buff database
+- [ESO Logs API Setup](docs/setup-esologs-api.md) - Get API credentials
+- [Parse Analysis Guide](docs/guide-parse-analysis.md) - Analyze combat parses
+- [Scribing Reference](docs/reference-scribing.md) - Scribing system validation
+- [Target Dummies Reference](docs/reference-target-dummies.md) - Dummy buff tracking
 - [Contributing Guide](docs/CONTRIBUTING.md) - How to contribute
 
 ## 🔧 Tech Stack
