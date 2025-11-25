@@ -1,298 +1,183 @@
-# ESO MCP Server
+# ESO-MCP
 
-MCP (Model Context Protocol) server for Elder Scrolls Online data, providing access to skills, sets, races, classes, and combat mechanics scraped from [UESP wiki](https://en.uesp.net/wiki/Online).
+**Elder Scrolls Online MCP Server** - Comprehensive game data tools for skills, sets, buffs, parse analysis, build recommendations, and more.
 
-## Features
+[![GitHub](https://img.shields.io/badge/GitHub-ESO--MCP-blue)](https://github.com/RichardDillman/ESO-MCP)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-- **Skills Database**: All class, weapon, armor, guild, world, and alliance war skills
-- **Gear Sets**: Complete database of craftable, dungeon, trial, arena, and mythic sets
-- **Race Information**: Racial passives and bonuses for all playable races
-- **Class Data**: Organized class skill lines and abilities
-- **Combat Mechanics**: Target dummy buffs/debuffs and combat formulas
-- **Fast Lookups**: Indexed database queries with Prisma ORM
-- **Type-Safe**: Full TypeScript implementation with Prisma and Zod validation
-- **SQLite Database**: Lightweight local database using Prisma with libSQL adapter
+## 🎮 What is ESO-MCP?
 
-## Installation
+ESO-MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that provides AI assistants with deep access to Elder Scrolls Online game data. It combines web scraping, database storage, and intelligent tools to help players:
+
+- 🔍 **Search** all ESO data (skills, sets, buffs, debuffs, races, classes, mundus stones)
+- 📊 **Analyze** combat parses from ESO Logs
+- ⚔️ **Optimize** builds and rotations for maximum DPS
+- 🧙 **Validate** scribing combinations
+- 🍖 **Recommend** consumables (food & potions)
+- 📈 **Track** skill dependencies and passive buffs
+
+## 🚀 Quick Start
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd eso-mcp
-
-# Install dependencies
+# Clone and install
+git clone https://github.com/RichardDillman/ESO-MCP.git
+cd ESO-MCP
 pnpm install
 
-# Generate Prisma client and run migrations
+# Set up environment
+cp .env.example .env
+# Edit .env with your API credentials
+
+# Initialize database
 pnpm db:migrate
 
-# Scrape initial data from UESP
+# Seed initial data
 pnpm update-data
 
-# Build the project
-pnpm build
-```
-
-## Usage
-
-### Running the Server
-
-```bash
-# Development mode with auto-reload
-pnpm dev
-
-# Production mode
+# Start the server
 pnpm start
 ```
 
-### Updating Data
+## 📦 Features
 
-Data should be updated manually on ESO release days:
+### 🔍 Unified Search
+Search across ALL ESO data types without knowing which table contains the data:
+- Skills (class, weapon, armor, guild, world, alliance)
+- Gear Sets (craftable, dungeon, trial, arena, mythic)
+- Buffs & Debuffs (Major/Minor with sources)
+- Races (passives and bonuses)
+- Classes (skill lines and abilities)
+- Mundus Stones (bonuses and effects)
+- Target Dummies (provided buffs/debuffs)
 
-```bash
-pnpm update-data
-```
+### 📊 Parse Analysis
+Integrate with ESO Logs to analyze combat parses:
+- DPS breakdown by ability
+- Buff uptime tracking
+- DoT coverage analysis
+- Detect slotted passive skills
+- Skill line passive detection
+- Self-provided vs dummy-provided buffs
+- Build recommendations
 
-This will scrape the latest information from UESP and update the local cache.
+### ⚔️ Build Optimization
+Smart recommendation engine that understands:
+- Skill dependencies (weapon/class/race requirements)
+- Passive cascades (changing weapon → lose/gain passives)
+- Buff coverage (avoid redundant buffs)
+- Consumable optimization (food & potions)
 
-## MCP Resources
+### 🧙 Scribing System
+Complete validation for ESO's scribing system:
+- 11 Grimoires (base skills)
+- 11 Focus Scripts (primary effects)
+- 22 Affix Scripts (secondary effects)
+- 19 Signature Scripts (execution methods)
+- Compatibility checking (class/weapon/armor restrictions)
 
-Access data via URI patterns:
+### 🍖 Consumables Database
+Raid-viable food and potions:
+- Single-stat foods (max DPS)
+- Bi-stat foods (balanced)
+- Tri-stat foods (hybrid builds)
+- Spell/Weapon Power potions
+- Tri-Stat Restoration potions
+- Heroism potions (ultimate generation)
 
-```
-eso://skills/{category}/{skillLine}/{skillName}
-eso://sets/{setName}
-eso://races/{raceName}
-eso://classes/{className}/{skillLine}
-eso://dummies/{dummyType}
-eso://buffs/{buffName}
-```
+## 🛠️ MCP Tools
 
-### Examples
+### Core Search Tools
+- `search_eso` - Universal search across all data types
+- `get_eso_details` - Detailed information for any game element
 
-```
-eso://skills/class/dragonknight/ardent-flame/lava-whip
-eso://skills/weapon/two-handed/cleave
-eso://sets/relequens-whorl
-eso://races/dunmer
-eso://classes/sorcerer/daedric-summoning
-eso://dummies/trial-dummy
-```
+### Specialized Tools
+- `search_skills`, `get_skill_details` - Skill database
+- `search_sets`, `get_set_details` - Gear sets
+- `search_buffs`, `get_buff_details` - Buffs & debuffs
+- `search_races`, `get_race_info` - Racial passives
+- `search_classes`, `get_class_info` - Class abilities
+- `search_mundus_stones`, `get_mundus_stone_details` - Mundus bonuses
 
-## MCP Tools
+### Target Dummy Tools
+- `get_target_dummy_info` - Dummy-provided buffs/debuffs
+- `list_target_dummies` - All available dummies
 
-Interactive queries available:
+### Scribing Tools
+- `validate_scribed_skill` - Check scribing compatibility
+- `list_scribing_options` - Available grimoires/scripts
+- `describe_scribed_skill` - Full scribed skill description
 
-### `search_skills`
-Find skills by criteria:
-```typescript
-{
-  query?: string,
-  skillLine?: string,
-  type?: "active" | "passive" | "ultimate",
-  resource?: "magicka" | "stamina" | "health"
+## 📚 Documentation
+
+- [ESO Logs Integration Guide](docs/ESOLOGS-INTEGRATION.md) - Set up parse analysis
+- [ESO Logs Setup](docs/ESOLOGS-SETUP-GUIDE.md) - API credentials
+- [Scribing System](docs/SCRIBING-SYSTEM.md) - Scribing validation
+- [Target Dummies](docs/TARGET-DUMMIES.md) - Dummy buff database
+- [Contributing Guide](docs/CONTRIBUTING.md) - How to contribute
+
+## 🔧 Tech Stack
+
+- **Runtime**: Node.js + TypeScript
+- **Database**: Prisma ORM + SQLite
+- **MCP**: Model Context Protocol server
+- **APIs**: ESO Logs GraphQL, UESP web scraping
+- **Integrations**: Telegram (InnerVoice), Vercel deployment
+
+## 📊 Database Schema
+
+```prisma
+model Skill {
+  id          String   @id
+  name        String
+  category    String
+  skillLine   String
+  type        String
+  description String?
+  cost        Json?
+  effects     SkillEffect[]
+  morphs      SkillMorph[]
+  scaling     SkillScaling[]
 }
-```
 
-### `search_sets`
-Find gear sets:
-```typescript
-{
-  query?: string,
-  type?: "craftable" | "overland" | "dungeon" | "trial" | "arena" | "mythic",
-  minPieces?: number,
-  slot?: "light" | "medium" | "heavy" | "jewelry" | "weapon",
-  bonusKeyword?: string
+model Set {
+  id          String   @id
+  name        String
+  type        String
+  slots       String[]
+  bonuses     Json
+  location    String?
+  tradeable   Boolean
 }
+
+// + Buff, Debuff, Race, Class, MundusStone, TargetDummy
 ```
 
-### `get_skill_details`
-Get complete information about a specific skill:
-```typescript
-{ skillName: string }
-```
+## 🤝 Contributing
 
-### `get_set_details`
-Get complete information about a specific set:
-```typescript
-{ setName: string }
-```
+Contributions welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for:
+- Code style guidelines
+- How to add new scrapers
+- Testing requirements
+- Pull request process
 
-### `get_race_info`
-Get racial passives and bonuses:
-```typescript
-{ raceName: string }
-```
+## 🙏 Acknowledgments
 
-### `get_class_info`
-Get class skill lines and abilities:
-```typescript
-{
-  className: string,
-  skillLine?: string  // optional: filter by skill line
-}
-```
+- [UESP](https://en.uesp.net/wiki/Online) - Comprehensive ESO documentation
+- [ESO Logs](https://www.esologs.com/) - Combat parse hosting
+- [Anthropic](https://anthropic.com) - Model Context Protocol
+- ESO Community - Build guides and testing
 
-### `get_dummy_info`
-Get target dummy buffs and debuffs:
-```typescript
-{ dummyType: string }  // "trial-dummy", "precursor", "skeleton"
-```
+## 📝 License
 
-## Project Structure
+MIT License - see [LICENSE](LICENSE) file for details
 
-```
-eso-mcp/
-├── src/
-│   ├── index.ts              # MCP server entry point
-│   ├── lib/
-│   │   └── prisma.ts         # Prisma client singleton
-│   ├── types/                # TypeScript type definitions
-│   │   ├── common.ts
-│   │   ├── skill.ts
-│   │   ├── set.ts
-│   │   ├── race.ts
-│   │   ├── class.ts
-│   │   └── buff.ts
-│   ├── scrapers/             # UESP wiki scrapers
-│   │   ├── base.ts
-│   │   ├── skills.ts
-│   │   ├── sets.ts
-│   │   ├── races.ts
-│   │   └── dummies.ts
-│   ├── storage/              # Data caching utilities
-│   │   ├── cache.ts
-│   │   └── loader.ts
-│   ├── utils/                # Utilities
-│   │   └── logger.ts
-│   └── generated/
-│       └── prisma/           # Generated Prisma client
-├── prisma/
-│   ├── schema.prisma         # Database schema
-│   ├── migrations/           # Database migrations
-│   └── dev.db                # SQLite database file
-├── scripts/
-│   └── update-data.ts        # Data update script
-└── tests/                    # Test files
-```
+## 📬 Contact
 
-## Data Models
+- **Author**: Richard Dillman
+- **Email**: rdillman@gmail.com
+- **GitHub**: [@RichardDillman](https://github.com/RichardDillman)
 
-### Skill
-```typescript
-{
-  name: string;
-  id: string;
-  type: "active" | "passive" | "ultimate";
-  skillLine: string;
-  category: "class" | "weapon" | "armor" | "guild" | "world" | "alliance" | "crafting";
-  cost?: { resource: string; amount: number };
-  effects: Effect[];
-  morphs?: Morph[];
-  scaling?: ScalingInfo;
-  description: string;
-  source: string;
-  lastUpdated: string;
-}
-```
+---
 
-### Set
-```typescript
-{
-  name: string;
-  id: string;
-  type: "craftable" | "overland" | "dungeon" | "trial" | "arena" | "mythic";
-  slots: Array<"light" | "medium" | "heavy" | "jewelry" | "weapon">;
-  bonuses: {
-    pieces: 1 | 2 | 3 | 4 | 5;
-    stats?: Record<string, number>;
-    effect?: string;
-  }[];
-  location?: string;
-  tradeable: boolean;
-  source: string;
-  lastUpdated: string;
-}
-```
-
-### Race
-```typescript
-{
-  name: string;
-  id: string;
-  description: string;
-  alliance?: string;
-  passives: RacialPassive[];
-  baseStats?: Record<string, number>;
-  source: string;
-  lastUpdated: string;
-}
-```
-
-## Development
-
-### Database Management
-
-```bash
-# Generate Prisma client
-pnpm db:generate
-
-# Create a new migration
-pnpm db:migrate
-
-# Open Prisma Studio (database GUI)
-pnpm db:studio
-```
-
-### Type Checking
-```bash
-pnpm type-check
-```
-
-### Linting
-```bash
-pnpm lint
-```
-
-### Formatting
-```bash
-pnpm format
-```
-
-### Testing
-```bash
-pnpm test
-```
-
-## Implementation Phases
-
-- [x] **Phase 1**: Foundation - Basic MCP server with one skill line
-- [ ] **Phase 2**: Skills Complete - All skills scraped and accessible
-- [ ] **Phase 3**: Sets Implementation - Complete sets database
-- [ ] **Phase 4**: Races & Classes - Character creation data
-- [ ] **Phase 5**: Combat Mechanics - Target dummies and buff/debuff system
-- [ ] **Phase 6**: Polish & Testing - Production-ready server
-
-## Future Enhancements
-
-- Build validation (checking for conflicts and synergies)
-- Set optimizer (recommendations based on playstyle)
-- Rotation suggestions (skill priorities and timing)
-
-## Contributing
-
-Data is sourced from [UESP](https://en.uesp.net/wiki/Online). Please verify any scraped information against the wiki and game client.
-
-## Contact
-
-- Email: rdillman@gmail.com
-- Phone: (317) 586-2365 (US)
-
-## License
-
-MIT
-
-## Acknowledgments
-
-- UESP community for maintaining comprehensive ESO documentation
-- Anthropic for the Model Context Protocol SDK
+🤖 *Built with [Claude Code](https://claude.com/claude-code)*
