@@ -1,0 +1,329 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Metadata tracking
+model Metadata {
+  id           Int      @id @default(autoincrement())
+  key          String   @unique
+  value        String
+  lastUpdated  DateTime @default(now()) @updatedAt
+}
+
+// Skills
+model Skill {
+  id                 String   @id
+  name               String
+  type               String   // active, passive, ultimate
+  skillLine          String
+  category           String   // class, weapon, armor, etc.
+
+  // Active skill properties
+  costResource       String?
+  costAmount         Int?
+  castTime           Int?
+  channelTime        Int?
+  duration           Int?
+  cooldown           Int?
+  range              Int?
+  radius             Int?
+  target             String?
+
+  // Metadata
+  description        String
+  unlockDescription  String?
+  patch              String?
+  source             String
+  lastUpdated        DateTime @default(now()) @updatedAt
+
+  // Relations
+  effects            Effect[]
+  morphs             Morph[]
+  baseSkillId        String?
+  baseSkill          Skill?   @relation("SkillMorphs", fields: [baseSkillId], references: [id], onDelete: SetNull)
+  morphedSkills      Skill[]  @relation("SkillMorphs")
+  scaling            Scaling?
+  requirements       Requirements?
+  skillLineRel       SkillLine? @relation(fields: [skillLineId], references: [id])
+  skillLineId        String?
+
+  @@index([name])
+  @@index([skillLine])
+  @@index([category])
+  @@index([type])
+}
+
+model Effect {
+  id          Int     @id @default(autoincrement())
+  type        String
+  description String
+  value       String?
+  duration    Int?
+  target      String?
+
+  skillId     String
+  skill       Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+}
+
+model Morph {
+  id          String   @id
+  name        String
+  description String
+  changes     String   // JSON array stored as string
+
+  skillId     String
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+}
+
+model Scaling {
+  id          Int     @id @default(autoincrement())
+  stat        String
+  coefficient Float
+  maxTargets  Int?
+
+  skillId     String  @unique
+  skill       Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+}
+
+model Requirements {
+  id                Int     @id @default(autoincrement())
+  level             Int?
+  skillLineRank     Int?
+  prerequisiteSkill String?
+
+  skillId           String  @unique
+  skill             Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+}
+
+model SkillLine {
+  id       String  @id
+  name     String  @unique
+  category String
+  maxRank  Int
+
+  skills   Skill[]
+
+  @@index([name])
+  @@index([category])
+}
+
+// Sets
+model Set {
+  id          String      @id
+  name        String      @unique
+  type        String      // craftable, overland, dungeon, trial, arena, mythic
+
+  // Availability
+  slots       String      // JSON array stored as string
+  weaponTypes String?     // JSON array stored as string
+
+  // Location
+  location    String?
+  dropSource  String?     // JSON array stored as string
+  craftingSites String?   // JSON array stored as string
+  dlcRequired String?
+
+  // Trading
+  tradeable   Boolean
+  bindType    String?
+
+  // Metadata
+  description String?
+  patch       String?
+  source      String
+  lastUpdated DateTime    @default(now()) @updatedAt
+
+  bonuses     SetBonus[]
+
+  @@index([name])
+  @@index([type])
+}
+
+model SetBonus {
+  id          Int     @id @default(autoincrement())
+  pieces      Int
+  stats       String? // JSON object stored as string
+  effect      String?
+  effectType  String?
+  cooldown    Int?
+
+  setId       String
+  set         Set     @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+}
+
+// Races
+model Race {
+  id          String         @id
+  name        String         @unique
+  description String
+  alliance    String?
+  baseStats   String?        // JSON object stored as string
+  source      String
+  lastUpdated DateTime       @default(now()) @updatedAt
+
+  passives    RacialPassive[]
+
+  @@index([name])
+}
+
+model RacialPassive {
+  id            Int      @id @default(autoincrement())
+  name          String
+  rank          Int
+  description   String
+  unlockLevel   Int
+  effects       String   // JSON array stored as string
+
+  raceId        String
+  race          Race     @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@index([raceId])
+}
+
+// Classes
+model Class {
+  id          String      @id
+  name        String      @unique
+  description String
+  source      String
+  lastUpdated DateTime    @default(now()) @updatedAt
+
+  @@index([name])
+}
+
+// Buffs and Debuffs
+model Buff {
+  id          String   @id
+  name        String
+  type        String?  // major, minor, or null for unique/unnamed
+  description String   // The mechanical effect description
+  icon        String?  // Icon URL or path
+  sources     String   // JSON: {abilities: [], sets: [], scribing: [], potions: [], champion: [], weaponType: []}
+  pageUrl     String   // UESP page URL
+  lastUpdated DateTime @default(now()) @updatedAt
+
+  @@index([name])
+  @@index([type])
+}
+
+model Debuff {
+  id          String   @id
+  name        String
+  type        String?  // major, minor, or null for unique/unnamed
+  description String   // The mechanical effect description
+  icon        String?  // Icon URL or path
+  sources     String   // JSON: {abilities: [], sets: [], scribing: [], potions: [], champion: [], weaponType: []}
+  pageUrl     String   // UESP page URL
+  lastUpdated DateTime @default(now()) @updatedAt
+
+  @@index([name])
+  @@index([type])
+}
+
+// Target Dummies
+model TargetDummy {
+  id              String   @id
+  name            String   @unique
+  health          Int
+  buffsProvided   String   // JSON array stored as string
+  debuffsProvided String   // JSON array stored as string
+  description     String
+  usage           String
+  source          String
+  lastUpdated     DateTime @default(now()) @updatedAt
+
+  @@index([name])
+}
+
+// Mundus Stones
+model MundusStone {
+  id          String   @id
+  name        String   @unique
+  effect      String
+  value       String?  // The numerical value or percentage
+  description String
+  location    String?  // Zone where the stone can be found
+  source      String
+  lastUpdated DateTime @default(now()) @updatedAt
+
+  @@index([name])
+}
+
+// Combat Caps and Stat Limits
+model Cap {
+  id          String   @id
+  name        String   @unique
+  category    String   // offensive, defensive, resource, movement
+  capValue    String?  // "18200", "100%", "125%", "none"
+  capType     String   // hard, soft, none
+  description String
+  notes       String?  // Additional context like "practical cap" or "diminishing returns"
+  lastUpdated DateTime @default(now()) @updatedAt
+
+  // Relations to what affects this cap
+  affectedByStats StatAffectsCap[]
+
+  @@index([name])
+  @@index([category])
+  @@index([capType])
+}
+
+// Junction table: Which stats/attributes affect which caps
+model StatAffectsCap {
+  id             Int    @id @default(autoincrement())
+
+  capId          String
+  cap            Cap    @relation(fields: [capId], references: [id], onDelete: Cascade)
+
+  statName       String // "Penetration", "Critical Rating", "Armor", "Spell Damage", etc.
+  conversionInfo String? // "21973 rating ≈ 100%", "33000 = 50% mitigation", conversion formulas
+
+  @@unique([capId, statName])
+  @@index([capId])
+  @@index([statName])
+}
+
+// Character Builds (Optional Storage)
+model CharacterBuild {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+
+  // Character Info
+  classId     String?
+  raceId      String?
+
+  // Stats (stored as JSON for flexibility)
+  stats       String   // JSON: { weaponDamage, spellDamage, maxMagicka, maxStamina, critChance, critDamage, penetration, etc. }
+
+  // Gear (stored as JSON array of set IDs)
+  sets        String?  // JSON: ["set-id-1", "set-id-2"]
+
+  // Active Skills/Rotation (stored as JSON)
+  rotation    String?  // JSON: [{ skillId, duration, castTime, isLightAttack }]
+
+  // Buffs active (stored as JSON)
+  buffs       String?  // JSON: ["buff-id-1", "buff-id-2"]
+
+  // Calculated DPS (cached)
+  cachedDPS   Float?
+
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+}
