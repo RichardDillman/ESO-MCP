@@ -4,7 +4,9 @@
       "command": "node",
       "args": ["dist/index.js"],
       "env": {
-        "DATABASE_URL": "file:./prisma/dev.db"
+        "DATABASE_URL": "file:./prisma/dev.db",
+        "ESOLOGS_CLIENT_ID": "a06e7973-dfa3-4799-8e72-d8ff1b0f639b",
+        "ESOLOGS_CLIENT_SECRET": "hQs034u9foYAz86J4JqhZ1VNv0FvoAqlCDOceS92"
       }
     }
   }

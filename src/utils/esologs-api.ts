@@ -186,10 +186,21 @@ export function parseReportParams(url: string): { fightID?: number; sourceID?: n
   };
 }
 
+interface Actor {
+  id: number;
+  name: string;
+  type: string;
+  subType: string;
+}
+
+interface ReportMetadataWithActors extends ReportMetadata {
+  actors: Actor[];
+}
+
 /**
- * Fetch report metadata
+ * Fetch report metadata including actors (players)
  */
-export async function fetchReportMetadata(reportCode: string): Promise<ReportMetadata> {
+export async function fetchReportMetadata(reportCode: string): Promise<ReportMetadataWithActors> {
   const query = `
     query($code: String!) {
       reportData {
@@ -206,6 +217,14 @@ export async function fetchReportMetadata(reportCode: string): Promise<ReportMet
             startTime
             endTime
           }
+          masterData {
+            actors {
+              id
+              name
+              type
+              subType
+            }
+          }
         }
       }
     }
@@ -219,6 +238,7 @@ export async function fetchReportMetadata(reportCode: string): Promise<ReportMet
     startTime: data.reportData.report.startTime,
     endTime: data.reportData.report.endTime,
     fights: data.reportData.report.fights,
+    actors: data.reportData.report.masterData?.actors || [],
   };
 }
 
@@ -331,7 +351,7 @@ export async function fetchCharacterData(reportUrl: string): Promise<CharacterDa
   const reportCode = parseReportCode(reportUrl);
   const params = parseReportParams(reportUrl);
 
-  // Get report metadata to find valid fight IDs
+  // Get report metadata to find valid fight IDs and actors
   const metadata = await fetchReportMetadata(reportCode);
 
   // If fightID is -2 or not specified, use all fights
@@ -351,16 +371,43 @@ export async function fetchCharacterData(reportUrl: string): Promise<CharacterDa
     fightIDs = [params.fightID];
   }
 
+  // Find the sourceID - use URL param, or find first actual player from actors
+  let sourceID = params.sourceID;
+  let playerName = 'Character';
+  let playerClass = 'Unknown';
+
+  if (!sourceID && metadata.actors) {
+    // Find first real player (not Environment, Offline, or NPCs)
+    const player = metadata.actors.find(
+      actor => actor.type === 'Player' &&
+               actor.name !== 'Offline' &&
+               actor.name !== 'Environment' &&
+               actor.subType !== 'NPC'
+    );
+    if (player) {
+      sourceID = player.id;
+      playerName = player.name;
+      playerClass = player.subType || 'Unknown';
+    }
+  } else if (sourceID && metadata.actors) {
+    // Lookup the player by sourceID
+    const player = metadata.actors.find(actor => actor.id === sourceID);
+    if (player) {
+      playerName = player.name;
+      playerClass = player.subType || 'Unknown';
+    }
+  }
+
   // Fetch damage and summary data in parallel (we already have metadata)
   const [damageData, summaryData] = await Promise.all([
-    fetchDamageData(reportCode, fightIDs, params.sourceID),
-    fetchSummaryData(reportCode, fightIDs, params.sourceID),
+    fetchDamageData(reportCode, fightIDs, sourceID),
+    fetchSummaryData(reportCode, fightIDs, sourceID),
   ]);
 
   return {
-    name: 'Character', // TODO: Extract from summary
-    class: 'Unknown', // TODO: Extract from summary
-    spec: 'Unknown', // TODO: Extract from summary
+    name: playerName,
+    class: playerClass,
+    spec: playerClass, // ESO doesn't have separate spec
     report: metadata,
     damage: damageData,
     summary: summaryData,
