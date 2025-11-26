@@ -1,7 +1,64 @@
 /**
  * ESO DPS Calculator
- * Based on ESO_DPS_Math.md
+ *
+ * Formulas verified from Skinnycheeks and Hyperioxes calculators (current as of 2024/2025)
+ * Sources:
+ * - https://www.skinnycheeks.gg/simple-damage-calculator
+ * - https://www.skinnycheeks.gg/status-effect-calculator
+ * - https://hyperioxes.com/eso/tools/penetration-calculator
+ * - https://hyperioxes.com/eso/dps/beam-build
  */
+
+// =============================================================================
+// CONSTANTS - Verified current values
+// =============================================================================
+
+/** Rating required for 1% Critical Chance */
+export const CRIT_CHANCE_RATING_PER_PERCENT = 219.12;
+
+/** Rating required for 1% Penetration effectiveness (500 pen = 1% more damage vs 18200 target) */
+export const PENETRATION_RATING_PER_PERCENT = 500;
+
+/** Base Critical Damage bonus (before any additional sources) */
+export const BASE_CRIT_DAMAGE_BONUS = 50; // 50% bonus = 1.5x multiplier
+
+/** Hard cap on Critical Damage bonus (NOT the multiplier, the bonus portion) */
+export const CRIT_DAMAGE_BONUS_HARD_CAP = 125; // 125% bonus = 2.25x multiplier max
+
+/** Base Critical Chance (before any rating) */
+export const BASE_CRIT_CHANCE = 10; // 10%
+
+/** Resource to Damage conversion ratio */
+export const RESOURCE_TO_DAMAGE_RATIO = 10.5; // 105 max resource ≈ 10 weapon/spell damage
+
+/** Standard enemy resistance values by content type */
+export const ENEMY_RESISTANCE = {
+  OVERLAND: 9100,        // Overland mobs, delves, public dungeons
+  MAELSTROM: 12100,      // Veteran Maelstrom Arena
+  DUNGEON_TRIAL: 18200,  // Dungeons, trials, world bosses (PvE cap)
+  DRAGON: 13650,         // Overland dragons
+} as const;
+
+/** Standard group-provided penetration (from tanks/supports) */
+export const GROUP_PENETRATION = {
+  MAJOR_BREACH: 5948,
+  MINOR_BREACH: 2974,
+  CRUSHER_ENCHANT: 2108,
+  ALKOSH: 6000,
+  CRIMSON_OATH: 3541,
+  TREMORSCALE: 2640,
+} as const;
+
+/** Total group penetration in a well-organized group */
+export const TYPICAL_GROUP_PEN =
+  GROUP_PENETRATION.MAJOR_BREACH +
+  GROUP_PENETRATION.MINOR_BREACH +
+  GROUP_PENETRATION.CRUSHER_ENCHANT +
+  GROUP_PENETRATION.ALKOSH; // ~17,030
+
+// =============================================================================
+// INTERFACES
+// =============================================================================
 
 export interface CharacterStats {
   weaponDamage?: number;
@@ -9,11 +66,11 @@ export interface CharacterStats {
   maxMagicka?: number;
   maxStamina?: number;
   maxHealth?: number;
-  weaponCritical?: number;
-  spellCritical?: number;
-  criticalDamage?: number; // TOTAL multiplier as percentage (e.g., 180 for 1.80x crit damage)
+  weaponCritical?: number;      // Critical rating (not percentage)
+  spellCritical?: number;       // Critical rating (not percentage)
+  criticalDamage?: number;      // Bonus crit damage as percentage (e.g., 75 for 75% bonus). Hard cap: 125%
   penetration?: number;
-  damageDoneBonus?: number; // Sum of additive %damage bonuses (as decimal, e.g., 0.25 for 25%)
+  damageDoneBonus?: number;     // Sum of additive %damage bonuses (as decimal, e.g., 0.25 for 25%)
 }
 
 export interface TargetStats {
@@ -48,44 +105,146 @@ export interface DamageResult {
   };
 }
 
+// =============================================================================
+// PENETRATION CALCULATIONS
+// =============================================================================
+
 /**
  * Calculate penetration factor based on target resistance and character penetration
- * Formula: Mitigation = Resistance / (50000 + Resistance)
- * DamageTakenMultiplier = 1 − Mitigation
+ *
+ * Formula (from Skinnycheeks): PenMultiplier = 1 - ((TargetResistance - Penetration) / 50000)
+ * - Every 500 penetration = 1% more damage (when under cap)
+ * - Cannot reduce enemy resistance below 0
+ *
+ * @param targetResistance - Enemy's armor/spell resistance (default: 18200 for dungeon/trial)
+ * @param characterPenetration - Your total penetration (personal + group debuffs)
+ * @returns Damage multiplier (1.0 = no mitigation, 0.636 = 36.4% mitigation at 0 pen vs 18200)
  */
 export function calculatePenetrationFactor(
   targetResistance: number,
   characterPenetration: number
 ): number {
   const effectiveResistance = Math.max(0, targetResistance - characterPenetration);
-  const mitigation = effectiveResistance / (50000 + effectiveResistance);
-  return 1 - mitigation;
+  // Skinnycheeks formula: 1 - (effectiveResistance / 50000)
+  return 1 - (effectiveResistance / 50000);
 }
 
 /**
- * Calculate expected critical strike factor
- * CritChance = WeaponCritical / 2190
- * CritDamageMultiplier = provided criticalDamagePercent as total multiplier (e.g., 180 for 1.80x)
- * ExpectedCritFactor = (1 − CritChance) × 1 + CritChance × CritDamageMultiplier
+ * Calculate damage lost due to incomplete penetration
+ * Formula: DamageLost% = (TargetResistance - TotalPenetration) / 500
  *
- * Note: criticalDamagePercent should be the TOTAL multiplier as percentage
- * e.g., 180 for 1.80x crit multiplier (which is base 1.5 + 30% bonus)
+ * @returns Percentage of damage being lost (0-36.4% for 18200 resistance)
+ */
+export function calculateDamageLostFromPenetration(
+  targetResistance: number,
+  characterPenetration: number
+): number {
+  const effectiveResistance = Math.max(0, targetResistance - characterPenetration);
+  return effectiveResistance / PENETRATION_RATING_PER_PERCENT;
+}
+
+/**
+ * Calculate how much penetration you need to reach the cap
+ *
+ * @param targetResistance - Enemy resistance to overcome
+ * @param currentPenetration - Your current total penetration
+ * @param groupPenetration - Penetration provided by group (debuffs, etc.)
+ * @returns Penetration needed to cap, or negative if over-penetrating
+ */
+export function calculatePenetrationNeeded(
+  targetResistance: number = ENEMY_RESISTANCE.DUNGEON_TRIAL,
+  currentPenetration: number = 0,
+  groupPenetration: number = 0
+): number {
+  const totalPenetration = currentPenetration + groupPenetration;
+  return targetResistance - totalPenetration;
+}
+
+// =============================================================================
+// CRITICAL STRIKE CALCULATIONS
+// =============================================================================
+
+/**
+ * Convert critical rating to critical chance percentage
+ *
+ * Formula: CritChance% = BaseCritChance + (CritRating / 219.12)
+ * - Base crit chance is 10%
+ * - 219.12 rating = 1% additional crit chance
+ * - No hard cap on crit chance (goal: 100%)
+ *
+ * @param criticalRating - Your critical rating from gear/buffs
+ * @returns Critical chance as decimal (0.0 to 1.0+)
+ */
+export function calculateCritChance(criticalRating: number): number {
+  const bonusCritChance = criticalRating / CRIT_CHANCE_RATING_PER_PERCENT;
+  return (BASE_CRIT_CHANCE + bonusCritChance) / 100;
+}
+
+/**
+ * Calculate effective critical damage multiplier
+ *
+ * Formula: CritMultiplier = 1 + (BaseCritBonus + BonusCritDamage) / 100
+ * - Base crit damage bonus is 50% (making crits do 1.5x damage)
+ * - HARD CAP: 125% bonus (making crits do 2.25x damage max)
+ * - Total crit damage = 100% + 50% base + bonus (capped at 125%)
+ *
+ * @param bonusCritDamage - Additional crit damage bonus from sources (0-125)
+ * @returns Crit damage multiplier (1.5 to 2.25)
+ */
+export function calculateCritDamageMultiplier(bonusCritDamage: number): number {
+  // Apply hard cap to bonus crit damage
+  const cappedBonus = Math.min(bonusCritDamage, CRIT_DAMAGE_BONUS_HARD_CAP);
+  // Total = 100% base + 50% base crit bonus + bonus (up to 125%)
+  // But the multiplier is: 1 + (total bonus / 100)
+  const totalBonus = BASE_CRIT_DAMAGE_BONUS + cappedBonus;
+  return 1 + (totalBonus / 100);
+}
+
+/**
+ * Calculate expected damage multiplier from critical strikes
+ *
+ * Formula: ExpectedCritFactor = (1 - CritChance) × 1 + CritChance × CritMultiplier
+ * Simplified: 1 + CritChance × (CritMultiplier - 1)
+ *
+ * @param criticalRating - Your critical rating
+ * @param bonusCritDamage - Bonus crit damage percentage (not including base 50%)
+ * @returns Expected damage multiplier accounting for crit probability
  */
 export function calculateCritFactor(
   criticalRating: number,
-  criticalDamagePercent: number
+  bonusCritDamage: number
 ): number {
-  // CritChance = WeaponCritical / 2190
-  // Example: 1095 rating = 50% crit chance = 0.5
-  const critChance = Math.min(1.0, criticalRating / 2190);
-  // criticalDamagePercent is the total multiplier (e.g., 180 = 1.80x damage)
-  const critDamageMultiplier = criticalDamagePercent / 100;
-  return (1 - critChance) * 1 + critChance * critDamageMultiplier;
+  const critChance = Math.min(1.0, calculateCritChance(criticalRating));
+  const critMultiplier = calculateCritDamageMultiplier(bonusCritDamage);
+  // Expected value: (1 - critChance) × 1 + critChance × critMultiplier
+  return (1 - critChance) + (critChance * critMultiplier);
 }
 
 /**
+ * Calculate how much crit damage bonus is wasted due to the cap
+ *
+ * @param bonusCritDamage - Your total bonus crit damage from all sources
+ * @returns Amount of crit damage being wasted (0 if under cap)
+ */
+export function calculateWastedCritDamage(bonusCritDamage: number): number {
+  return Math.max(0, bonusCritDamage - CRIT_DAMAGE_BONUS_HARD_CAP);
+}
+
+// =============================================================================
+// BASE DAMAGE CALCULATIONS
+// =============================================================================
+
+/**
  * Calculate base ability damage
- * AbilityDamage = (Coefficient × Weapon/Spell Damage) + (MaxResource / 10.5)
+ *
+ * Formula (from Skinnycheeks): Base = (MaxResource / 10.5) + WeaponDamage
+ * With coefficient: AbilityDamage = Coefficient × ((MaxResource / 10.5) + WeaponDamage)
+ *
+ * The 10.5 ratio means: 105 max resource ≈ 10 weapon/spell damage in contribution
+ *
+ * @param ability - Ability info with coefficient and scaling
+ * @param stats - Character stats
+ * @returns Base damage before multipliers
  */
 export function calculateAbilityBaseDamage(
   ability: AbilityInfo,
@@ -106,7 +265,8 @@ export function calculateAbilityBaseDamage(
     maxResource = stats.maxHealth || 0;
   }
 
-  const baseDamage = (ability.coefficient * damageSource) + (maxResource / 10.5);
+  // Skinnycheeks formula: (maxResource / 10.5) + weaponDamage, then × coefficient
+  const baseDamage = ability.coefficient * ((maxResource / RESOURCE_TO_DAMAGE_RATIO) + damageSource);
 
   // For DOTs, multiply by tick count
   if (ability.isDOT && ability.tickCount) {
@@ -117,8 +277,34 @@ export function calculateAbilityBaseDamage(
 }
 
 /**
+ * Calculate "effective damage stat" for build comparison
+ * This combines max resource and weapon/spell damage into one comparable number
+ *
+ * Formula: EffectiveDamage = WeaponDamage + (MaxResource / 10.5)
+ */
+export function calculateEffectiveDamageStat(
+  damageRating: number,
+  maxResource: number
+): number {
+  return damageRating + (maxResource / RESOURCE_TO_DAMAGE_RATIO);
+}
+
+// =============================================================================
+// FULL DAMAGE CALCULATIONS
+// =============================================================================
+
+/**
  * Calculate final damage for an ability
- * FinalDamage = (Base × Coef × (1 + additive bonuses)) × (Pen factor) × (Crit factor) × (Vulnerability) × (Special multipliers)
+ *
+ * Full formula (from Skinnycheeks):
+ * FinalDamage = Base × (1 + DamageDone) × (1 + DamageToMonsters) × (1 + DamageTaken) × PenMultiplier × CritFactor
+ *
+ * Multiplier categories (multiplicative between categories, additive within):
+ * 1. Damage Done - your buffs (Major/Minor Berserk, Empower, etc.)
+ * 2. Damage to Monsters - CP passives, specific monster bonuses
+ * 3. Damage Taken - target debuffs (Minor Vulnerability, etc.)
+ * 4. Penetration - armor bypass
+ * 5. Critical - crit chance × crit multiplier
  */
 export function calculateAbilityDamage(
   ability: AbilityInfo,
