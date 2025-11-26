@@ -10,7 +10,8 @@
 |------|---------------|------|----------|
 | Critical Chance | 219.12 | 100% | None |
 | Critical Damage | N/A | 125% bonus | **125% bonus** (2.25x max) |
-| Penetration | 500 | 18,200 (PvE) | Enemy resistance |
+| Mitigation | 660 resistance | 0% | 50% at 33,000 |
+| Penetration | N/A | 18,200 (PvE) | Enemy resistance |
 
 ---
 
@@ -61,15 +62,17 @@ Example at 60% crit chance with 75% bonus crit damage:
 
 ---
 
-## Penetration
+## Penetration & Mitigation
 
 ### Formula
 ```
-PenetrationMultiplier = 1 - ((TargetResistance - Penetration) / 50000)
-DamageLost% = (TargetResistance - Penetration) / 500
+Mitigation% = (TargetResistance - Penetration) / 66,000
+DamageMultiplier = 1 - Mitigation%
 ```
 
-- **500 penetration = 1% more damage** (when under cap)
+- **660 resistance = 1% damage mitigation**
+- **50% mitigation cap** at 33,000 effective resistance
+- Penetration reduces target's effective resistance
 - Cannot reduce enemy resistance below 0
 
 ### Enemy Resistance Values
@@ -94,6 +97,18 @@ In organized groups, tanks/supports provide:
 | **Typical Group Total** | ~17,030 |
 
 **DPS Personal Pen Needed**: ~1,170 to cap in a well-organized group
+
+### Example Calculation
+
+Against a trial boss (18,200 resistance) with 0 penetration:
+- Effective resistance: 18,200
+- Mitigation: 18,200 / 66,000 = **27.6%**
+- Damage multiplier: 1 - 0.276 = **0.724** (72.4% of potential damage)
+
+With full penetration (18,200):
+- Effective resistance: 0
+- Mitigation: 0%
+- Damage multiplier: **1.0** (100% of potential damage)
 
 ---
 
@@ -162,15 +177,18 @@ These formulas are implemented in `src/utils/dps-calculator.ts`:
 ```typescript
 import {
   // Constants
-  CRIT_CHANCE_RATING_PER_PERCENT,  // 219.12
-  PENETRATION_RATING_PER_PERCENT,   // 500
-  BASE_CRIT_DAMAGE_BONUS,           // 50
-  CRIT_DAMAGE_BONUS_HARD_CAP,       // 125
-  RESOURCE_TO_DAMAGE_RATIO,         // 10.5
-  ENEMY_RESISTANCE,                 // { OVERLAND, DUNGEON_TRIAL, etc. }
-  GROUP_PENETRATION,                // { MAJOR_BREACH, MINOR_BREACH, etc. }
+  CRIT_CHANCE_RATING_PER_PERCENT,    // 219.12
+  RESISTANCE_PER_PERCENT_MITIGATION, // 660 (resistance per 1% mitigation)
+  RESISTANCE_CAP,                    // 33,000 (50% mitigation cap)
+  BASE_CRIT_DAMAGE_BONUS,            // 50
+  CRIT_DAMAGE_BONUS_HARD_CAP,        // 125
+  BASE_CRIT_CHANCE,                  // 10
+  RESOURCE_TO_DAMAGE_RATIO,          // 10.5
+  ENEMY_RESISTANCE,                  // { OVERLAND, DUNGEON_TRIAL, etc. }
+  GROUP_PENETRATION,                 // { MAJOR_BREACH, MINOR_BREACH, etc. }
 
   // Functions
+  calculateMitigation,
   calculatePenetrationFactor,
   calculateDamageLostFromPenetration,
   calculatePenetrationNeeded,

@@ -16,8 +16,11 @@
 /** Rating required for 1% Critical Chance */
 export const CRIT_CHANCE_RATING_PER_PERCENT = 219.12;
 
-/** Rating required for 1% Penetration effectiveness (500 pen = 1% more damage vs 18200 target) */
-export const PENETRATION_RATING_PER_PERCENT = 500;
+/** Rating required for 1% mitigation/penetration (660 resistance = 1% mitigation) */
+export const RESISTANCE_PER_PERCENT_MITIGATION = 660;
+
+/** Resistance cap for 50% damage mitigation */
+export const RESISTANCE_CAP = 33000; // 33,000 resistance = 50% mitigation cap
 
 /** Base Critical Damage bonus (before any additional sources) */
 export const BASE_CRIT_DAMAGE_BONUS = 50; // 50% bonus = 1.5x multiplier
@@ -106,41 +109,55 @@ export interface DamageResult {
 }
 
 // =============================================================================
-// PENETRATION CALCULATIONS
+// PENETRATION & MITIGATION CALCULATIONS
 // =============================================================================
 
 /**
- * Calculate penetration factor based on target resistance and character penetration
+ * Calculate mitigation percentage from resistance
  *
- * Formula (from Skinnycheeks): PenMultiplier = 1 - ((TargetResistance - Penetration) / 50000)
- * - Every 500 penetration = 1% more damage (when under cap)
- * - Cannot reduce enemy resistance below 0
+ * Formula: Mitigation% = EffectiveResistance / (660 × 100)
+ * - 660 resistance = 1% damage mitigation
+ * - Capped at 50% (reached at 33,000 resistance)
+ *
+ * @param effectiveResistance - Target resistance after penetration applied
+ * @returns Mitigation as decimal (0.0 to 0.5 max)
+ */
+export function calculateMitigation(effectiveResistance: number): number {
+  const mitigation = effectiveResistance / (RESISTANCE_PER_PERCENT_MITIGATION * 100);
+  return Math.min(0.5, mitigation); // Cap at 50%
+}
+
+/**
+ * Calculate penetration factor (damage multiplier after mitigation)
+ *
+ * Formula: DamageMultiplier = 1 - Mitigation%
+ * Where: Mitigation% = (TargetResistance - Penetration) / 66,000 (capped at 50%)
  *
  * @param targetResistance - Enemy's armor/spell resistance (default: 18200 for dungeon/trial)
  * @param characterPenetration - Your total penetration (personal + group debuffs)
- * @returns Damage multiplier (1.0 = no mitigation, 0.636 = 36.4% mitigation at 0 pen vs 18200)
+ * @returns Damage multiplier (1.0 = no mitigation, ~0.724 at 0 pen vs 18200)
  */
 export function calculatePenetrationFactor(
   targetResistance: number,
   characterPenetration: number
 ): number {
   const effectiveResistance = Math.max(0, targetResistance - characterPenetration);
-  // Skinnycheeks formula: 1 - (effectiveResistance / 50000)
-  return 1 - (effectiveResistance / 50000);
+  const mitigation = calculateMitigation(effectiveResistance);
+  return 1 - mitigation;
 }
 
 /**
  * Calculate damage lost due to incomplete penetration
- * Formula: DamageLost% = (TargetResistance - TotalPenetration) / 500
+ * Formula: DamageLost% = EffectiveResistance / 660
  *
- * @returns Percentage of damage being lost (0-36.4% for 18200 resistance)
+ * @returns Percentage of damage being mitigated (0-50% max, ~27.6% for 18200 resistance)
  */
 export function calculateDamageLostFromPenetration(
   targetResistance: number,
   characterPenetration: number
 ): number {
   const effectiveResistance = Math.max(0, targetResistance - characterPenetration);
-  return effectiveResistance / PENETRATION_RATING_PER_PERCENT;
+  return Math.min(50, effectiveResistance / RESISTANCE_PER_PERCENT_MITIGATION);
 }
 
 /**
