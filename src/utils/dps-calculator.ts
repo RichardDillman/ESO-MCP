@@ -488,25 +488,3 @@ export function compareRotations(
   };
 }
 
-/**
- * Helper: Calculate damage per cast for light/heavy attacks
- */
-export const LIGHT_ATTACK_DUAL_WIELD: AbilityInfo = {
-  coefficient: 0.94,
-  resourceScaling: 'stamina',
-  isLightAttack: true,
-  castTime: 1.0,
-};
-
-export const FATECARVER_TICK: AbilityInfo = {
-  coefficient: 0.168,
-  resourceScaling: 'magicka',
-  isDOT: false, // Handle per-tick
-  castTime: 0.2, // Per tick
-};
-
-export const STAMPEDE_INITIAL: AbilityInfo = {
-  coefficient: 1.05,
-  resourceScaling: 'stamina',
-  castTime: 1.0,
-};
